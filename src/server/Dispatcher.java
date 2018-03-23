@@ -41,7 +41,6 @@ public class Dispatcher extends Thread {
 						sendFile(file, fileLength, currentThread.getClientSocket());
 					} else {
 						outToClient.writeBytes(HTTP_Formatter.create404Response(connectionState) + '\n');
-
 					}
 					currentThread.getClientSocket().getOutputStream().flush();
 					// Generate a response based on the request, send it

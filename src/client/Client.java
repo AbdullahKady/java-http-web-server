@@ -10,7 +10,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.Scanner;
 
 import util.HTTP_Formatter;
 import util.HTTP_Parser;
@@ -18,33 +17,43 @@ import util.HTTP_Parser;
 public class Client {
 	Socket clientSocket;
 	String dirName;
+	ClientGUI clientGUI;
 
-	public Client(int port, String dirName) throws UnknownHostException, IOException {
+	public void setGUI(ClientGUI cg) {
+		this.clientGUI = cg;
+	}
 
+	public Client(int port, String dirName) throws UnknownHostException, IOException, DirectoryExistsException {
+		File dir = new File("./src/client/downloads/" + dirName);
+		if (dir.exists()) {
+			throw new DirectoryExistsException();
+		}
+		dir.mkdirs();
 		Socket clientSocket = new Socket("127.0.0.1", port);
 		System.out.println("Connected successfully to server!");
 		this.clientSocket = clientSocket;
 		this.dirName = dirName;
-
 	}
 
-	private void sendRequest(String url, String keepAlive) throws IOException {
+	public void sendRequest(String url, String keepAlive) throws IOException {
 		DataOutputStream outToServer = new DataOutputStream(this.clientSocket.getOutputStream());
 		InputStream in = clientSocket.getInputStream();
-		outToServer.writeBytes(HTTP_Formatter.createRequest(url, "whateverthe.com", keepAlive) + '\n');
+		String request = HTTP_Formatter.createRequest(url, "127.0.0.1", keepAlive);
+		outToServer.writeBytes(request + '\n');
+		this.clientGUI.textPane_req.setText(request);
 		// Since no pipelining is to be implemented; therefore need to wait for
 		// the response before sending another request
 		BufferedReader inFromServer = new BufferedReader(new InputStreamReader(in));
-		System.out.println("REQUEST SENT FOR: " + url);
-		String request = "";
+		String response = "";
 		for (int i = 0; i < 5; i++) {
-			request += inFromServer.readLine() + '\n';
+			response += inFromServer.readLine() + '\n';
 		}
-		String[] parsedReq = HTTP_Parser.parseResponse(request);
-		String status = parsedReq[0];
-		System.out.println("RESPONSE RECEIVED: " + status);
+		this.clientGUI.textPane_res
+				.setText(response.substring(0, (response.substring(0, response.lastIndexOf('\n'))).lastIndexOf('\n')));
+		String[] parsedRes = HTTP_Parser.parseResponse(response);
+		String status = parsedRes[0];
 		if (status.equals("200")) {
-			int contentLength = Integer.parseInt(parsedReq[4]);
+			int contentLength = Integer.parseInt(parsedRes[4]);
 			OutputStream out = new FileOutputStream("./src/client/downloads/" + this.dirName + "/" + url);
 			byte[] bytes = new byte[contentLength];
 			int count;
@@ -55,41 +64,15 @@ public class Client {
 				if (total >= contentLength)
 					break;
 			}
-			if (parsedReq[3].equals("close"))
-				out.close();
-		} else {
-			System.out.println("File was not found");
+			out.close();
 		}
-		System.out.println("DONE WITH THE REQUEST");
+		if (parsedRes[3].equals("close")) {
+			this.clientGUI.terminate();
+		}
 	}
 
-	public static void main(String[] args) throws Exception {
-		System.out.println(
-				"Welcome, please type in a name to create a directory inside the downloads folder to receive your files in");
-		Scanner sc = new Scanner(System.in);
-		String tempDir;
-		while (true) {
-			tempDir = sc.nextLine();
-			File dir = new File("./src/client/downloads/" + tempDir);
-			if (!dir.exists()) {
-				dir.mkdirs();
-				System.out.println("Folder created successfully, you can now find your downloads in the '" + tempDir
-						+ "' Directory");
-				break;
-			}
-			System.out.println("Folder already exists, please enter a new a name.");
-		}
-		Client c = new Client(4444, tempDir);
-		String line;
-		String[] input;
-		while (true) {
-			line = sc.nextLine();
-			input = line.split(",");
-			c.sendRequest(input[0], input[1]);
-			if (input[1].equals("close"))
-				break;
-		}
-		sc.close();
+	public class DirectoryExistsException extends Exception {
+		private static final long serialVersionUID = 1L;
 	}
 
 }
