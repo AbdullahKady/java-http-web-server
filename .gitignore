@@ -12,3 +12,9 @@ local.properties
 .settings/
 .loadpath
 .recommenders
+
+# exclude everything
+src/server/docroot/*
+
+# exception to the rule
+!src/server/docroot/.gitkeep
